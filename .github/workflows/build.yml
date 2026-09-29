@@ -1,0 +1,44 @@
+name: Build Gym Tracker iOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: GymTracker_iOS/GymTracker
+        run: xcodegen generate
+
+      - name: Build unsigned iOS app
+        working-directory: GymTracker_iOS/GymTracker
+        run: |
+          xcodebuild archive \
+            -project GymTracker.xcodeproj \
+            -scheme GymTracker \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath "$GITHUB_WORKSPACE/build/GymTracker.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Package IPA
+        run: |
+          mkdir -p build/Payload
+          cp -R "build/GymTracker.xcarchive/Products/Applications/Gym Tracker.app" build/Payload/
+          cd build
+          zip -qry GymTracker.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: GymTracker-IPA
+          path: build/GymTracker.ipa
