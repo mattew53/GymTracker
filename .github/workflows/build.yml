@@ -26,6 +26,7 @@ jobs:
             -scheme GymTracker \
             -sdk iphoneos \
             -configuration Release \
+            -derivedDataPath "$GITHUB_WORKSPACE/build/DerivedData" \
             build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
@@ -33,24 +34,30 @@ jobs:
 
       - name: Package IPA
         run: |
-          APP_PATH=$(find GymTracker_iOS/GymTracker -type d -name "*.app" | head -n 1)
+          echo "Cerco l'app compilata..."
+
+          APP_PATH=$(find "$GITHUB_WORKSPACE/build/DerivedData" \
+            -type d \
+            -name "*.app" \
+            | head -n 1)
 
           echo "APP TROVATA:"
           echo "$APP_PATH"
 
-          test -n "$APP_PATH"
-          test -d "$APP_PATH"
+          if [ -z "$APP_PATH" ]; then
+            echo "ERRORE: non trovo il file .app"
+            find "$GITHUB_WORKSPACE/build/DerivedData" -maxdepth 8 -type d
+            exit 1
+          fi
 
-          mkdir -p build/Payload
-          cp -R "$APP_PATH" build/Payload/
-          cd build
+          mkdir -p "$GITHUB_WORKSPACE/build/Payload"
+          cp -R "$APP_PATH" "$GITHUB_WORKSPACE/build/Payload/"
+
+          cd "$GITHUB_WORKSPACE/build"
           zip -qry GymTracker.ipa Payload
 
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: GymTracker-IPA
-          path: build/GymTracker.ipa
+          echo "IPA CREATA:"
+          ls -lh GymTracker.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
