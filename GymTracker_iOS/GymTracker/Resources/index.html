@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Gym Tracker">
+<title>Gym Tracker</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#171717;background:#fafafa}
+*{box-sizing:border-box}body{margin:0}main{max-width:760px;margin:auto;padding:18px 16px 40px}
+button,input,select,textarea{font:inherit}button{min-height:44px;border:1px solid #ddd;border-radius:12px;padding:9px 13px;background:#fff;color:#171717;font-weight:650}
+button.primary{background:#171717;color:#fff;border-color:#171717}
+input,select,textarea{width:100%;min-height:44px;border:1px solid #ddd;border-radius:11px;padding:10px;background:#fff;color:#171717;margin-top:7px}
+textarea{min-height:65px;resize:vertical}.muted{color:#777;font-size:13px}.card{border:1px solid #e5e5e5;background:#fff;border-radius:18px;padding:15px;margin-top:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:0}.hidden{display:none!important}
+.calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.calhead{text-align:center;color:#777;font-size:11px;padding:4px}
+.day{min-height:44px;padding:4px!important;font-size:12px}.day.work{background:#eee;border-color:#111}.day small{display:block;font-weight:800}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.series{border:1px solid #eee;border-radius:13px;padding:10px;margin-top:7px}
+.timer{font-size:40px;font-weight:800;text-align:center;margin:5px}.stat{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.chart{height:130px;display:flex;align-items:flex-end;gap:5px;border-bottom:1px solid #ddd;padding:8px 2px}.bar{flex:1;background:#eee;border:1px solid #111;border-bottom:0;border-radius:5px 5px 0 0}
+@media(max-width:480px){.grid3{grid-template-columns:1fr 1fr}.grid3 input:last-child{grid-column:1/-1}}
+</style>
+</head>
+<body><main id="app"></main>
+<script>
+(() => {
+const app=document.getElementById('app');
+const built={Upper:{
+  "Petto":["Chest Press","Panca inclinata","Pec Fly","Croci dal basso ai cavi"],
+  "Spalle":["Shoulder Press / Military Press","Alzate laterali ai cavi","Reverse Fly ai cavi"],
+  "Bicipiti":["Panca Scott / Preacher Curl","Hammer Curl","Curl ai cavi"],
+  "Tricipiti":["Overhead Extension ai cavi — triangolo","Push Down singolo con supporto","Push Down corda / V-Bar"],
+  "Schiena":["T-Bar","Pulley","Lat Pull Down"]},
+Lower:{
+  "Abduttori / Adduttori":["Abductor","Adductor"],"Femorali":["Leg Curl"],
+  "Quadricipiti":["Leg Extension","Leg Press / Hack Squat"],"Polpacci":["Calf Raises al macchinario"],
+  "Lombari":["Hyperextension"],"Avambracci":["Reverse Grip Curl"]}};
+let state=JSON.parse(localStorage.getItem("gymTrackerState")||"null")||{
+ custom:{Upper:{},Lower:{}},history:[],activities:{},type:"Upper",draft:{},opened:{},
+ timer:180,selected:180
+};
+let timerId=null;
+const save=()=>localStorage.setItem("gymTrackerState",JSON.stringify(state));
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const dateKey=(d=new Date())=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const nice=k=>{let [y,m,d]=k.split("-");return d+"/"+m+"/"+y};
+function groups(t){let x=JSON.parse(JSON.stringify(built[t]));Object.entries(state.custom[t]||{}).forEach(([g,a])=>x[g]=(x[g]||[]).concat(a));return x}
+function page(id){app.querySelectorAll("[data-page]").forEach(x=>x.classList.toggle("hidden",x.dataset.page!==id))}
+function last(ex){for(let i=state.history.length-1;i>=0;i--){let s=state.history[i].sets.find(x=>x.exercise===ex);if(s)return"Ultimo: "+s.kg+" kg × "+s.reps+" · RIR "+s.rir}return"Nessun dato precedente"}
+function renderHome(){
+ const n=state.history.length,k=dateKey(),a=state.activities[k];
+ app.innerHTML=`<section data-page="home">
+ <div class="muted">GYM TRACKER</div><h1 style="font-size:30px;margin:3px 0">Bentornato 👋</h1><div class="muted">Allenati. Registra. Migliora.</div>
+ <button id="go" class="primary" style="width:100%;margin-top:18px">🏋️ Allenamento</button>
+ <div class="row" style="margin-top:8px"><button id="hist">📚 Storico</button><button id="manage">⚙️ Esercizi</button></div>
+ <div class="card"><div class="muted">ULTIMO ALLENAMENTO</div><div style="font-size:18px;font-weight:750;margin-top:4px">${n?state.history[n-1].type+" · "+state.history[n-1].date:"Nessun allenamento ancora"}</div><div class="muted" style="margin-top:4px">${n} workout</div></div>
+ <div class="card"><div class="stat"><div><b>Attività di oggi</b><div class="muted">${nice(k)}</div></div><button id="activity">Modifica</button></div>
+ <div style="margin-top:12px">${a?`<div class="stat"><span>🚶 Passi</span><b>${Number(a.steps||0).toLocaleString("it-IT")}</b></div>
+ <div class="stat" style="margin-top:7px"><span>🎯 10k passi</span><b>${a.goal?"SÌ ✓":"NO"}</b></div>
+ ${a.cardioType?`<div class="stat" style="margin-top:7px"><span>🔥 ${esc(a.cardioType)}</span><b>${a.minutes} min · ~${a.calories} kcal</b></div>`:""}
+ ${a.note?`<div class="muted" style="margin-top:8px">📝 ${esc(a.note)}</div>`:""}`:"<div class='muted'>Nessuna attività inserita per oggi.</div>"}</div></div>
+ <div class="card"><b>Calendario allenamenti</b><div class="muted">I giorni vengono riconosciuti automaticamente.</div><div id="calendar" style="margin-top:12px"></div></div>
+ </section>`;
+ renderCalendar();
+ app.querySelector("#go").onclick=()=>{state.type="Upper";state.draft={};state.opened={};renderWork()};
+ app.querySelector("#hist").onclick=renderHistory;
+ app.querySelector("#manage").onclick=renderManage;
+ app.querySelector("#activity").onclick=renderActivity;
+}
+function renderCalendar(){
+ const el=app.querySelector("#calendar"),d=new Date(),y=d.getFullYear(),m=d.getMonth(),off=(new Date(y,m,1).getDay()+6)%7,days=new Date(y,m+1,0).getDate();
+ let h='<div class="calendar">'+["L","M","M","G","V","S","D"].map(x=>`<div class="calhead">${x}</div>`).join("");
+ for(let i=0;i<off;i++)h+="<div></div>";
+ for(let i=1;i<=days;i++){let k=y+"-"+String(m+1).padStart(2,"0")+"-"+String(i).padStart(2,"0"),w=state.history.find(x=>x.key===k);h+=`<button class="day ${w?"work":""}" ${w?`data-day="${k}"`:""}>${i}${w?`<small>${w.type}</small>`:""}</button>`}
+ el.innerHTML=h+"</div>";el.querySelectorAll("[data-day]").forEach(b=>b.onclick=()=>renderDay(b.dataset.day));
+}
+function renderActivity(){
+ const k=dateKey(),a=state.activities[k]||{};
+ app.innerHTML=`<section data-page="activity"><button id="back">← Home</button><h2>Attività di oggi</h2><div class="muted">${nice(k)}</div>
+ <form id="form">
+ <div class="card"><b>🚶 Passi</b><label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="goal" type="checkbox" style="width:20px;margin:0" ${a.goal?"checked":""}> Obiettivo 10.000 passi raggiunto</label><input id="steps" type="number" min="0" step="100" placeholder="Quanti passi?" value="${a.steps||""}"></div>
+ <div class="card"><b>🔥 Cardio extra</b><select id="ct"><option value="">Nessun cardio extra</option>${["Corsa","Tapis roulant","Bici","Ellittica","Camminata","Stairmaster","Altro"].map(x=>`<option ${a.cardioType===x?"selected":""}>${x}</option>`).join("")}</select>
+ <div class="row"><input id="mins" type="number" min="0" max="600" placeholder="Minuti" value="${a.minutes||""}"><input id="weight" type="number" min="30" max="250" step="0.1" placeholder="Peso kg" value="${a.weight||72}"></div><div id="cal" class="calc" style="margin-top:9px;font-weight:750">Stima: — kcal</div></div>
+ <div class="card"><b>📝 Nota della giornata</b><textarea id="note" placeholder="Es. 40 min tapis roulant...">${esc(a.note||"")}</textarea></div>
+ <button class="primary" style="width:100%;margin-top:12px">✓ Salva attività</button></form></section>`;
+ const calc=()=>{let met={Corsa:9.8,"Tapis roulant":7.5,Bici:7,Ellittica:7,Camminata:3.5,Stairmaster:8,Altro:6}[$("ct").value]||0,w=Number($("weight").value)||72,min=Number($("mins").value)||0,kcal=Math.round(met*w*min/60);$("cal").textContent=$("ct").value&&min?"Stima: ~"+kcal+" kcal":"Stima: — kcal";return kcal};
+ const $=id=>app.querySelector("#"+id);["ct","mins","weight"].forEach(id=>$(id).oninput=calc);calc();
+ $("back").onclick=renderHome;$("form").onsubmit=e=>{e.preventDefault();state.activities[k]={goal:$("goal").checked,steps:Number($("steps").value)||0,cardioType:$("ct").value,minutes:Number($("mins").value)||0,weight:Number($("weight").value)||72,calories:calc(),note:$("note").value.trim()};save();renderHome()};
+}
+function renderWork(){
+ const gs=groups(state.type);let h=`<section data-page="work"><button id="back">← Home</button><h2>Allenamento ${state.type}</h2>
+ <div class="row"><button id="up" class="${state.type==="Upper"?"primary":""}">UPPER</button><button id="low" class="${state.type==="Lower"?"primary":""}">LOWER</button></div>
+ <button id="timerToggle" style="width:100%;margin-top:8px">⏱️ Timer recupero</button>
+ <div id="timerBox" class="card hidden"><div class="muted" style="text-align:center">RECUPERO</div><div id="timer" class="timer">03:00</div><div class="row">${[60,90,120,180,300].map(x=>`<button data-p="${x}" class="${state.selected===x?"primary":""}">${x===300?"5m":x+"s"}</button>`).join("")}</div><div class="row" style="margin-top:8px"><button id="ts" class="primary">▶ Avvia</button><button id="tp">⏸ Stop</button><button id="tr">↺ Reset</button></div></div>`;
+ Object.entries(gs).forEach(([g,exs])=>{let op=state.opened[g];h+=`<div class="card"><button data-g="${esc(g)}" style="width:100%">${esc(g)} ${op?"⌃":"⌄"}</button>`;if(op)exs.forEach(ex=>{let k=state.type+"|"+ex,s=state.draft[k]||[];h+=`<div class="card"><b>${esc(ex)}</b><div class="muted">${esc(last(ex))}</div><div class="grid3"><input data-f="kg" type="number" step="0.25" placeholder="Kg"><input data-f="reps" type="number" placeholder="Reps"><input data-f="rir" type="number" placeholder="RIR"></div><label class="muted"><input data-f="fail" type="checkbox" style="width:20px"> Cedimento</label><textarea data-f="note" placeholder="Note"></textarea><button class="primary" data-add="${esc(ex)}" style="width:100%;margin-top:7px">＋ Registra serie</button>${s.map((z,i)=>`<div class="series"><div class="stat"><span>Serie ${i+1} — <b>${z.kg} kg × ${z.reps}</b> · RIR ${z.rir}${z.failure?" · 🔥":""}</span><span><button data-edit="${i}">✏️</button><button data-del="${i}">🗑️</button></span></div>${z.note?`<div class="muted">📝 ${esc(z.note)}</div>`:""}</div>`).join("")}</div>`});h+="</div>"});h+='<button id="finish" class="primary" style="width:100%;margin-top:14px">✓ Termina allenamento</button></section>';app.innerHTML=h;
+ const timerEl=app.querySelector("#timer"),update=()=>{let m=Math.floor(state.timer/60),s=state.timer%60;timerEl.textContent=state.timer?String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"):"PRONTO 🔥"};
+ const start=()=>{clearInterval(timerId);if(state.timer<=0)state.timer=state.selected;timerId=setInterval(()=>{state.timer--;update();if(state.timer<=0)clearInterval(timerId)},1000)};
+ app.querySelector("#back").onclick=()=>{clearInterval(timerId);renderHome()};app.querySelector("#up").onclick=()=>{state.type="Upper";state.opened={};renderWork()};app.querySelector("#low").onclick=()=>{state.type="Lower";state.opened={};renderWork()};app.querySelector("#timerToggle").onclick=()=>app.querySelector("#timerBox").classList.toggle("hidden");
+ app.querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{state.selected=Number(b.dataset.p);state.timer=state.selected;update();start()});app.querySelector("#ts").onclick=start;app.querySelector("#tp").onclick=()=>clearInterval(timerId);app.querySelector("#tr").onclick=()=>{clearInterval(timerId);state.timer=state.selected;update()};
+ app.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{state.opened[b.dataset.g]=!state.opened[b.dataset.g];renderWork()});
+ app.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{let box=b.parentElement,kg=box.querySelector('[data-f="kg"]').value,reps=box.querySelector('[data-f="reps"]').value;if(!kg||!reps)return;let k=state.type+"|"+b.dataset.add;(state.draft[k]||(state.draft[k]=[])).push({type:state.type,exercise:b.dataset.add,kg:Number(kg),reps:Number(reps),rir:box.querySelector('[data-f="rir"]').value||"-",failure:box.querySelector('[data-f="fail"]').checked,note:box.querySelector('[data-f="note"]').value.trim()});renderWork();state.timer=state.selected;update();start()});
+ app.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{let box=b.closest(".card"),ex=box.querySelector("b").textContent,k=state.type+"|"+ex;(state.draft[k]||[]).splice(Number(b.dataset.del),1);renderWork()});
+ app.querySelector("#finish").onclick=()=>{let sets=Object.values(state.draft).flat();if(!sets.length)return;state.history.push({key:dateKey(),date:nice(dateKey()),type:state.type,sets});state.draft={};save();clearInterval(timerId);renderHome()};update();
+}
+function renderHistory(){let all=[...Object.values(built.Upper).flat(),...Object.values(built.Lower).flat(),...Object.values(state.custom.Upper).flat(),...Object.values(state.custom.Lower).flat()];app.innerHTML=`<section data-page="history"><button id="back">← Home</button><h2>Storico allenamenti</h2><div class="card"><b>Progressi per esercizio</b><select id="ex">${[...new Set(all)].map(x=>`<option>${esc(x)}</option>`).join("")}</select><div id="prog"></div></div><div class="card"><b>Allenamenti</b>${state.history.slice().reverse().map(w=>`<div style="padding:9px 0;border-bottom:1px solid #eee"><b>${w.type}</b> · ${w.date}<div class="muted">${w.sets.length} serie</div></div>`).join("")||"<div class='muted'>Nessun allenamento.</div>"}</div></section>`;app.querySelector("#back").onclick=renderHome;const prog=()=>{let ex=app.querySelector("#ex").value,rows=[];state.history.forEach(w=>w.sets.filter(s=>s.exercise===ex).forEach(s=>rows.push({...s,date:w.date})));app.querySelector("#prog").innerHTML=rows.length?rows.reverse().map(s=>`<div class="series">${s.date} · <b>${s.kg} kg × ${s.reps}</b> · RIR ${s.rir}</div>`).join(""):"<div class='muted'>Nessun dato.</div>"};app.querySelector("#ex").onchange=prog;prog()}
+function renderManage(){let t=state.manageType||"Upper",g=groups(t);app.innerHTML=`<section data-page="manage"><button id="back">← Home</button><h2>Gestisci esercizi</h2><div class="card"><select id="type">${["Upper","Lower"].map(x=>`<option ${t===x?"selected":""}>${x}</option>`).join("")}</select><select id="group">${Object.keys(g).map(x=>`<option>${esc(x)}</option>`).join("")}</select><input id="new" placeholder="Nome esercizio"><button id="add" class="primary" style="width:100%;margin-top:8px">＋ Aggiungi</button></div><div class="card">${Object.entries(state.custom.Upper).flatMap(([g,a])=>a.map(e=>`<div>Upper · ${g} · ${esc(e)}</div>`)).concat(Object.entries(state.custom.Lower).flatMap(([g,a])=>a.map(e=>`<div>Lower · ${g} · ${esc(e)}</div>`))).join("<hr>")||"<span class='muted'>Nessun esercizio personalizzato.</span>"}</div></section>`;app.querySelector("#back").onclick=renderHome;app.querySelector("#type").onchange=e=>{state.manageType=e.target.value;renderManage()};app.querySelector("#add").onclick=()=>{let t=app.querySelector("#type").value,g=app.querySelector("#group").value,n=app.querySelector("#new").value.trim();if(!n)return;(state.custom[t][g]||(state.custom[t][g]=[])).push(n);save();renderManage()}}
+function renderDay(k){let w=state.history.find(x=>x.key===k),a=state.activities[k];let h=`<section data-page="day"><button id="back">← Indietro</button><h2>${w?w.type+" · ":""}${nice(k)}</h2>`;if(a)h+=`<div class="card"><b>Attività della giornata</b><div class="stat"><span>🚶 Passi</span><b>${Number(a.steps||0).toLocaleString("it-IT")}</b></div><div class="stat"><span>🎯 10k</span><b>${a.goal?"Sì":"No"}</b></div>${a.cardioType?`<div class="stat"><span>🔥 ${esc(a.cardioType)}</span><b>${a.minutes} min · ~${a.calories} kcal</b></div>`:""}${a.note?`<div class="muted">📝 ${esc(a.note)}</div>`:""}</div>`;if(w){let map={};w.sets.forEach(s=>(map[s.exercise]??=[]).push(s));Object.entries(map).forEach(([e,ss])=>{h+=`<div class="card"><b>${esc(e)}</b>${ss.map((s,i)=>`<div class="series">Serie ${i+1} — <b>${s.kg} kg × ${s.reps}</b> · RIR ${s.rir}${s.failure?" · 🔥":""}${s.note?`<div class="muted">📝 ${esc(s.note)}</div>`:""}</div>`).join("")}</div>`)}}if(!w&&!a)h+='<div class="card muted">Nessun dato registrato.</div>';h+="</section>";app.innerHTML=h;app.querySelector("#back").onclick=renderHome}
+renderHome();
+})();
+</script></main>
+
+
+</body></html>
