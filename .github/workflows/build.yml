@@ -21,19 +21,25 @@ jobs:
       - name: Build unsigned iOS app
         working-directory: GymTracker_iOS/GymTracker
         run: |
-          xcodebuild archive \
+          xcodebuild \
             -project GymTracker.xcodeproj \
             -scheme GymTracker \
             -sdk iphoneos \
             -configuration Release \
-            -archivePath "$GITHUB_WORKSPACE/build/GymTracker.xcarchive" \
+            build \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
 
       - name: Package IPA
         run: |
+          APP_PATH="GymTracker_iOS/GymTracker/build/Release-iphoneos/Gym Tracker.app"
+          if [ ! -d "$APP_PATH" ]; then
+            APP_PATH="GymTracker_iOS/GymTracker/build/Build/Products/Release-iphoneos/Gym Tracker.app"
+          fi
+          test -d "$APP_PATH"
           mkdir -p build/Payload
-          cp -R "build/GymTracker.xcarchive/Products/Applications/Gym Tracker.app" build/Payload/
+          cp -R "$APP_PATH" build/Payload/
           cd build
           zip -qry GymTracker.ipa Payload
 
