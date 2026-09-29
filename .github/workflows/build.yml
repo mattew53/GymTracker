@@ -33,15 +33,24 @@ jobs:
 
       - name: Package IPA
         run: |
-          APP_PATH="GymTracker_iOS/GymTracker/build/Release-iphoneos/Gym Tracker.app"
-          if [ ! -d "$APP_PATH" ]; then
-            APP_PATH="GymTracker_iOS/GymTracker/build/Build/Products/Release-iphoneos/Gym Tracker.app"
-          fi
+          APP_PATH=$(find GymTracker_iOS/GymTracker -type d -name "*.app" | head -n 1)
+
+          echo "APP TROVATA:"
+          echo "$APP_PATH"
+
+          test -n "$APP_PATH"
           test -d "$APP_PATH"
+
           mkdir -p build/Payload
           cp -R "$APP_PATH" build/Payload/
           cd build
           zip -qry GymTracker.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: GymTracker-IPA
+          path: build/GymTracker.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
