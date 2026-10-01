@@ -31,7 +31,35 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
+      - name: Inspect app bundle
+        run: |
+          set -e
 
+          APP_PATH=$(find "$GITHUB_WORKSPACE/build/DerivedData/Build/Products" \
+            -type d \
+            -path "*/Release-iphoneos/*.app" \
+            | head -n 1)
+
+          echo "===== APP PATH ====="
+          echo "$APP_PATH"
+
+          echo ""
+          echo "===== INFO PLIST ====="
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundlePackageType" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_PATH/Info.plist"
+
+          echo ""
+          echo "===== EXECUTABLE ====="
+          EXECUTABLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP_PATH/Info.plist")
+          file "$APP_PATH/$EXECUTABLE"
+
+          echo ""
+          echo "===== APP CONTENT ====="
+          find "$APP_PATH" -maxdepth 2 -type f -print
+     
       - name: Verify built app
         run: |
           set -e
