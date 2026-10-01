@@ -13,13 +13,17 @@ struct GymTrackerApp: App {
 
 struct GymTrackerWebView: UIViewRepresentable {
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
     func makeUIView(context: Context) -> WKWebView {
+
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
+
+        // Gestore per i file locali dell'app.
+        let bundleHandler = BundleSchemeHandler()
+        configuration.setURLSchemeHandler(
+            bundleHandler,
+            forURLScheme: "gymtracker"
+        )
 
         let webView = WKWebView(
             frame: .zero,
@@ -28,23 +32,19 @@ struct GymTrackerWebView: UIViewRepresentable {
 
         webView.navigationDelegate = context.coordinator
 
-        // Mostra gli errori JavaScript invece di lasciare una schermata bianca
-        webView.configuration.userContentController.add(
+        // Manteniamo il messaggio nativo per eventuali errori JS.
+        configuration.userContentController.add(
             context.coordinator,
             name: "jsError"
         )
 
-        if let url = Bundle.main.url(
-            forResource: "index",
-            withExtension: "html"
-        ) {
-            webView.loadFileURL(
-                url,
-                allowingReadAccessTo: Bundle.main.bundleURL
-            )
+        // L'app viene caricata tramite gymtracker://
+        // invece che tramite file://
+        if let url = URL(string: "gymtracker://local/index.html") {
+            webView.load(URLRequest(url: url))
         } else {
             webView.loadHTMLString(
-                "<h1>ERRORE: index.html non trovato</h1>",
+                "<h1>Errore caricamento Gym Tracker</h1>",
                 baseURL: nil
             )
         }
@@ -56,6 +56,10 @@ struct GymTrackerWebView: UIViewRepresentable {
         _ webView: WKWebView,
         context: Context
     ) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
 
     class Coordinator: NSObject,
                        WKNavigationDelegate,
@@ -75,7 +79,10 @@ struct GymTrackerWebView: UIViewRepresentable {
             didFail navigation: WKNavigation!,
             withError error: Error
         ) {
-            showError(webView, error.localizedDescription)
+            showError(
+                in: webView,
+                message: error.localizedDescription
+            )
         }
 
         func webView(
@@ -83,24 +90,142 @@ struct GymTrackerWebView: UIViewRepresentable {
             didFailProvisionalNavigation navigation: WKNavigation!,
             withError error: Error
         ) {
-            showError(webView, error.localizedDescription)
+            showError(
+                in: webView,
+                message: error.localizedDescription
+            )
         }
 
         private func showError(
-            _ webView: WKWebView,
-            _ message: String
+            in webView: WKWebView,
+            message: String
         ) {
+            let safeMessage = message
+                .replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+
             webView.loadHTMLString(
                 """
                 <html>
                 <body style="font-family:-apple-system;padding:30px">
                 <h2>Gym Tracker — errore</h2>
-                <p>\(message)</p>
+                <p>\(safeMessage)</p>
                 </body>
                 </html>
                 """,
                 baseURL: nil
             )
         }
+    }
+}
+
+
+// MARK: - Local Bundle Handler
+
+final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
+
+    func webView(
+        _ webView: WKWebView,
+        start urlSchemeTask: WKURLSchemeTask
+    ) {
+
+        guard let url = urlSchemeTask.request.url else {
+            urlSchemeTask.didFailWithError(
+                NSError(
+                    domain: "GymTracker",
+                    code: 1,
+                    userInfo: [
+                        NSLocalizedDescriptionKey:
+                            "URL non valida."
+                    ]
+                )
+            )
+            return
+        }
+
+        let fileName = url.path
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        let components = fileName.split(
+            separator: ".",
+            omittingEmptySubsequences: false
+        )
+
+        let name: String
+        let ext: String
+
+        if components.count >= 2 {
+            ext = String(components.last!)
+            name = components.dropLast().joined(separator: ".")
+        } else {
+            name = fileName
+            ext = ""
+        }
+
+        guard let fileURL = Bundle.main.url(
+            forResource: name,
+            withExtension: ext.isEmpty ? nil : ext
+        ) else {
+            urlSchemeTask.didFailWithError(
+                NSError(
+                    domain: "GymTracker",
+                    code: 2,
+                    userInfo: [
+                        NSLocalizedDescriptionKey:
+                            "File non trovato: \(fileName)"
+                    ]
+                )
+            )
+            return
+        }
+
+        do {
+            let data = try Data(contentsOf: fileURL)
+
+            let mimeType: String
+
+            switch ext.lowercased() {
+            case "html":
+                mimeType = "text/html"
+            case "css":
+                mimeType = "text/css"
+            case "js":
+                mimeType = "application/javascript"
+            case "png":
+                mimeType = "image/png"
+            case "jpg", "jpeg":
+                mimeType = "image/jpeg"
+            case "svg":
+                mimeType = "image/svg+xml"
+            default:
+                mimeType = "application/octet-stream"
+            }
+
+            let response = URLResponse(
+                url: url,
+                mimeType: mimeType,
+                expectedContentLength: data.count,
+                textEncodingName: ext.lowercased() == "html"
+                    || ext.lowercased() == "css"
+                    || ext.lowercased() == "js"
+                    ? "utf-8"
+                    : nil
+            )
+
+            urlSchemeTask.didReceive(response)
+            urlSchemeTask.didReceive(data)
+            urlSchemeTask.didFinish()
+
+        } catch {
+            urlSchemeTask.didFailWithError(error)
+        }
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        stop urlSchemeTask: WKURLSchemeTask
+    ) {
+        // Nessuna operazione da interrompere.
     }
 }
