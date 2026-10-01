@@ -62,12 +62,33 @@ Lower:{
   "Abduttori / Adduttori":["Abductor","Adductor"],"Femorali":["Leg Curl"],
   "Quadricipiti":["Leg Extension","Leg Press / Hack Squat"],"Polpacci":["Calf Raises al macchinario"],
   "Lombari":["Hyperextension"],"Avambracci":["Reverse Grip Curl"]}};
-let state=JSON.parse(localStorage.getItem("gymTrackerState")||"null")||{
- custom:{Upper:{},Lower:{}},history:[],activities:{},type:"Upper",draft:{},opened:{},
- timer:180,selected:180
+let state;
+try {
+  state = JSON.parse(localStorage.getItem("gymTrackerState") || "null");
+} catch(e) {
+  state = null;
+}
+
+state = state || {
+  custom:{Upper:{},Lower:{}},
+  history:[],
+  activities:{},
+  type:"Upper",
+  draft:{},
+  opened:{},
+  timer:180,
+  selected:180
 };
+
 let timerId=null;
-const save=()=>localStorage.setItem("gymTrackerState",JSON.stringify(state));
+
+const save=()=>{
+  try {
+    localStorage.setItem("gymTrackerState",JSON.stringify(state));
+  } catch(e) {
+    console.log("Salvataggio locale non disponibile:", e);
+  }
+};
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const dateKey=(d=new Date())=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const nice=k=>{let [y,m,d]=k.split("-");return d+"/"+m+"/"+y};
