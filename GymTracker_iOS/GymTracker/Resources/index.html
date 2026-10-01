@@ -131,9 +131,25 @@ function renderWork(){
 }
 function renderHistory(){let all=[...Object.values(built.Upper).flat(),...Object.values(built.Lower).flat(),...Object.values(state.custom.Upper).flat(),...Object.values(state.custom.Lower).flat()];app.innerHTML=`<section data-page="history"><button id="back">← Home</button><h2>Storico allenamenti</h2><div class="card"><b>Progressi per esercizio</b><select id="ex">${[...new Set(all)].map(x=>`<option>${esc(x)}</option>`).join("")}</select><div id="prog"></div></div><div class="card"><b>Allenamenti</b>${state.history.slice().reverse().map(w=>`<div style="padding:9px 0;border-bottom:1px solid #eee"><b>${w.type}</b> · ${w.date}<div class="muted">${w.sets.length} serie</div></div>`).join("")||"<div class='muted'>Nessun allenamento.</div>"}</div></section>`;app.querySelector("#back").onclick=renderHome;const prog=()=>{let ex=app.querySelector("#ex").value,rows=[];state.history.forEach(w=>w.sets.filter(s=>s.exercise===ex).forEach(s=>rows.push({...s,date:w.date})));app.querySelector("#prog").innerHTML=rows.length?rows.reverse().map(s=>`<div class="series">${s.date} · <b>${s.kg} kg × ${s.reps}</b> · RIR ${s.rir}</div>`).join(""):"<div class='muted'>Nessun dato.</div>"};app.querySelector("#ex").onchange=prog;prog()}
 function renderManage(){let t=state.manageType||"Upper",g=groups(t);app.innerHTML=`<section data-page="manage"><button id="back">← Home</button><h2>Gestisci esercizi</h2><div class="card"><select id="type">${["Upper","Lower"].map(x=>`<option ${t===x?"selected":""}>${x}</option>`).join("")}</select><select id="group">${Object.keys(g).map(x=>`<option>${esc(x)}</option>`).join("")}</select><input id="new" placeholder="Nome esercizio"><button id="add" class="primary" style="width:100%;margin-top:8px">＋ Aggiungi</button></div><div class="card">${Object.entries(state.custom.Upper).flatMap(([g,a])=>a.map(e=>`<div>Upper · ${g} · ${esc(e)}</div>`)).concat(Object.entries(state.custom.Lower).flatMap(([g,a])=>a.map(e=>`<div>Lower · ${g} · ${esc(e)}</div>`))).join("<hr>")||"<span class='muted'>Nessun esercizio personalizzato.</span>"}</div></section>`;app.querySelector("#back").onclick=renderHome;app.querySelector("#type").onchange=e=>{state.manageType=e.target.value;renderManage()};app.querySelector("#add").onclick=()=>{let t=app.querySelector("#type").value,g=app.querySelector("#group").value,n=app.querySelector("#new").value.trim();if(!n)return;(state.custom[t][g]||(state.custom[t][g]=[])).push(n);save();renderManage()}}
-function renderDay(k){let w=state.history.find(x=>x.key===k),a=state.activities[k];let h=`<section data-page="day"><button id="back">← Indietro</button><h2>${w?w.type+" · ":""}${nice(k)}</h2>`;if(a)h+=`<div class="card"><b>Attività della giornata</b><div class="stat"><span>🚶 Passi</span><b>${Number(a.steps||0).toLocaleString("it-IT")}</b></div><div class="stat"><span>🎯 10k</span><b>${a.goal?"Sì":"No"}</b></div>${a.cardioType?`<div class="stat"><span>🔥 ${esc(a.cardioType)}</span><b>${a.minutes} min · ~${a.calories} kcal</b></div>`:""}${a.note?`<div class="muted">📝 ${esc(a.note)}</div>`:""}</div>`;if(w){let map={};w.sets.forEach(s=>(map[s.exercise]??=[]).push(s));Object.entries(map).forEach(([e,ss])=>{h+=`<div class="card"><b>${esc(e)}</b>${ss.map((s,i)=>`<div class="series">Serie ${i+1} — <b>${s.kg} kg × ${s.reps}</b> · RIR ${s.rir}${s.failure?" · 🔥":""}${s.note?`<div class="muted">📝 ${esc(s.note)}</div>`:""}</div>`).join("")}</div>`)}}if(!w&&!a)h+='<div class="card muted">Nessun dato registrato.</div>';h+="</section>";app.innerHTML=h;app.querySelector("#back").onclick=renderHome}
-renderHome();
-})();
+function renderDay(k){
+  let w=state.history.find(x=>x.key===k),a=state.activities[k];
+  let h=`<section data-page="day"><button id="back">← Indietro</button><h2>${w?w.type+" · ":""}${nice(k)}</h2>`;
+
+  if(a) h+=`<div class="card"><b>Attività della giornata</b><div class="stat"><span>🚶 Passi</span><b>${Number(a.steps||0).toLocaleString("it-IT")}</b></div><div class="stat"><span>🎯 10k</span><b>${a.goal?"Sì":"No"}</b></div>${a.cardioType?`<div class="stat"><span>🔥 ${esc(a.cardioType)}</span><b>${a.minutes} min · ~${a.calories} kcal</b></div>`:""}${a.note?`<div class="muted">📝 ${esc(a.note)}</div>`:""}</div>`;
+
+  if(w){
+    let map={};
+    w.sets.forEach(s=>(map[s.exercise]??=[]).push(s));
+    Object.entries(map).forEach(([e,ss])=>{
+      h+=`<div class="card"><b>${esc(e)}</b>${ss.map((s,i)=>`<div class="series">Serie ${i+1} — <b>${s.kg} kg × ${s.reps}</b> · RIR ${s.rir}${s.failure?" · 🔥":""}${s.note?`<div class="muted">📝 ${esc(s.note)}</div>`:""}</div>`).join("")}</div>`;
+    });
+  }
+
+  if(!w&&!a)h+='<div class="card muted">Nessun dato registrato.</div>';
+  h+="</section>";
+  app.innerHTML=h;
+  app.querySelector("#back").onclick=renderHome;
+}
 </script></main>
 
 
