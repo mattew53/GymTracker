@@ -18,15 +18,14 @@ settings:
     CODE_SIGN_STYLE: Manual
     CODE_SIGNING_ALLOWED: NO
     CODE_SIGNING_REQUIRED: NO
-
 targets:
   GymTracker:
     type: application
     platform: iOS
     sources:
       - path: GymTrackerApp.swift
-    resources:
       - path: Resources
+        buildPhase: resources
     settings:
       base:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
