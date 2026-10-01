@@ -19,11 +19,7 @@ struct GymTrackerWebView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
-
-        // Memoria persistente dell'app
         configuration.websiteDataStore = .default()
-
-        configuration.allowsInlineMediaPlayback = true
 
         let webView = WKWebView(
             frame: .zero,
@@ -31,9 +27,12 @@ struct GymTrackerWebView: UIViewRepresentable {
         )
 
         webView.navigationDelegate = context.coordinator
-        webView.allowsBackForwardNavigationGestures = false
-        webView.backgroundColor = .systemBackground
-        webView.isOpaque = true
+
+        // Mostra gli errori JavaScript invece di lasciare una schermata bianca
+        webView.configuration.userContentController.add(
+            context.coordinator,
+            name: "jsError"
+        )
 
         if let url = Bundle.main.url(
             forResource: "index",
@@ -41,19 +40,13 @@ struct GymTrackerWebView: UIViewRepresentable {
         ) {
             webView.loadFileURL(
                 url,
-                allowingReadAccessTo: url.deletingLastPathComponent()
+                allowingReadAccessTo: Bundle.main.bundleURL
             )
         } else {
-            let html = """
-            <html>
-            <body style="font-family: sans-serif; padding: 30px;">
-            <h2>Gym Tracker</h2>
-            <p>Errore: index.html non trovato nell'app.</p>
-            </body>
-            </html>
-            """
-
-            webView.loadHTMLString(html, baseURL: nil)
+            webView.loadHTMLString(
+                "<h1>ERRORE: index.html non trovato</h1>",
+                baseURL: nil
+            )
         }
 
         return webView
@@ -64,14 +57,25 @@ struct GymTrackerWebView: UIViewRepresentable {
         context: Context
     ) {}
 
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject,
+                       WKNavigationDelegate,
+                       WKScriptMessageHandler {
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            if message.name == "jsError" {
+                print("JAVASCRIPT ERROR:", message.body)
+            }
+        }
 
         func webView(
             _ webView: WKWebView,
             didFail navigation: WKNavigation!,
             withError error: Error
         ) {
-            showError(in: webView, message: error.localizedDescription)
+            showError(webView, error.localizedDescription)
         }
 
         func webView(
@@ -79,24 +83,24 @@ struct GymTrackerWebView: UIViewRepresentable {
             didFailProvisionalNavigation navigation: WKNavigation!,
             withError error: Error
         ) {
-            showError(in: webView, message: error.localizedDescription)
+            showError(webView, error.localizedDescription)
         }
 
         private func showError(
-            in webView: WKWebView,
-            message: String
+            _ webView: WKWebView,
+            _ message: String
         ) {
-            let html = """
-            <html>
-            <body style="font-family: -apple-system; padding: 30px;">
-            <h2>Gym Tracker</h2>
-            <p>Errore di caricamento:</p>
-            <pre>\(message)</pre>
-            </body>
-            </html>
-            """
-
-            webView.loadHTMLString(html, baseURL: nil)
+            webView.loadHTMLString(
+                """
+                <html>
+                <body style="font-family:-apple-system;padding:30px">
+                <h2>Gym Tracker — errore</h2>
+                <p>\(message)</p>
+                </body>
+                </html>
+                """,
+                baseURL: nil
+            )
         }
     }
 }
