@@ -25,6 +25,30 @@ textarea{min-height:65px;resize:vertical}.muted{color:#777;font-size:13px}.card{
 </style>
 </head>
 <body><main id="app"></main>
+
+<script>
+window.addEventListener("error", function(e) {
+    document.getElementById("app").innerHTML = `
+        <div style="font-family:-apple-system;padding:30px">
+            <h2>Gym Tracker — errore</h2>
+            <p><b>Errore JavaScript:</b></p>
+            <pre style="white-space:pre-wrap;background:#f2f2f2;padding:15px;border-radius:10px">${e.message}</pre>
+            <p>Riga: ${e.lineno || "sconosciuta"}</p>
+        </div>
+    `;
+});
+
+window.addEventListener("unhandledrejection", function(e) {
+    document.getElementById("app").innerHTML = `
+        <div style="font-family:-apple-system;padding:30px">
+            <h2>Gym Tracker — errore</h2>
+            <p><b>Promise error:</b></p>
+            <pre style="white-space:pre-wrap;background:#f2f2f2;padding:15px;border-radius:10px">${e.reason}</pre>
+        </div>
+    `;
+});
+</script>
+
 <script>
 (() => {
 const app=document.getElementById('app');
