@@ -32,35 +32,69 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
 
-      - name: Package IPA
+      - name: Verify built app
         run: |
-          echo "Cerco l'app compilata..."
+          set -e
 
-          APP_PATH=$(find "$GITHUB_WORKSPACE/build/DerivedData" \
+          APP_PATH=$(find "$GITHUB_WORKSPACE/build/DerivedData/Build/Products" \
             -type d \
-            -name "*.app" \
+            -path "*/Release-iphoneos/*.app" \
             | head -n 1)
 
           echo "APP TROVATA:"
           echo "$APP_PATH"
 
           if [ -z "$APP_PATH" ]; then
-            echo "ERRORE: non trovo il file .app"
-            find "$GITHUB_WORKSPACE/build/DerivedData" -maxdepth 8 -type d
+            echo "ERRORE: .app non trovata"
+            find "$GITHUB_WORKSPACE/build/DerivedData" -type d -name "*.app"
             exit 1
           fi
 
-          mkdir -p "$GITHUB_WORKSPACE/build/Payload"
-          cp -R "$APP_PATH" "$GITHUB_WORKSPACE/build/Payload/"
+          echo "CONTENUTO APP:"
+          find "$APP_PATH" -maxdepth 2 -print
 
-          cd "$GITHUB_WORKSPACE/build"
-          zip -qry GymTracker.ipa Payload
+          test -f "$APP_PATH/Info.plist"
 
-          echo "IPA CREATA:"
+          echo "Info.plist trovata."
+
+      - name: Create standard IPA
+        run: |
+          set -e
+
+          APP_PATH=$(find "$GITHUB_WORKSPACE/build/DerivedData/Build/Products" \
+            -type d \
+            -path "*/Release-iphoneos/*.app" \
+            | head -n 1)
+
+          rm -rf "$GITHUB_WORKSPACE/build/IPA"
+          mkdir -p "$GITHUB_WORKSPACE/build/IPA/Payload"
+
+          APP_NAME=$(basename "$APP_PATH")
+
+          cp -R "$APP_PATH" \
+            "$GITHUB_WORKSPACE/build/IPA/Payload/$APP_NAME"
+
+          cd "$GITHUB_WORKSPACE/build/IPA"
+
+          zip -r -X GymTracker.ipa Payload
+
+          echo ""
+          echo "===== CONTENUTO IPA ====="
+          unzip -l GymTracker.ipa
+
+          echo ""
+          echo "===== DIMENSIONE IPA ====="
           ls -lh GymTracker.ipa
+
+          echo ""
+          echo "===== CONTROLLO STRUTTURA ====="
+          test -d "Payload/$APP_NAME"
+          test -f "Payload/$APP_NAME/Info.plist"
+
+          echo "IPA VALIDA COME ARCHIVIO."
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: GymTracker-IPA
-          path: build/GymTracker.ipa
+          path: build/IPA/GymTracker.ipa
