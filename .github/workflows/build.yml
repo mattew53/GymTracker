@@ -18,9 +18,11 @@ jobs:
         working-directory: GymTracker_iOS/GymTracker
         run: xcodegen generate
 
-      - name: Build unsigned iOS app
+      - name: Build unsigned app
         working-directory: GymTracker_iOS/GymTracker
         run: |
+          set -e
+
           xcodebuild \
             -project GymTracker.xcodeproj \
             -scheme GymTracker \
@@ -31,98 +33,105 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
-      - name: Inspect app bundle
+
+      - name: Locate app
+        id: locate
         run: |
           set -e
 
-          APP_PATH=$(find "$GITHUB_WORKSPACE/build/DerivedData/Build/Products" \
+          APP_PATH=$(find \
+            "$GITHUB_WORKSPACE/build/DerivedData/Build/Products" \
             -type d \
             -path "*/Release-iphoneos/*.app" \
             | head -n 1)
-
-          echo "===== APP PATH ====="
-          echo "$APP_PATH"
-
-          echo ""
-          echo "===== INFO PLIST ====="
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :CFBundlePackageType" "$APP_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PATH/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_PATH/Info.plist"
-
-          echo ""
-          echo "===== EXECUTABLE ====="
-          EXECUTABLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP_PATH/Info.plist")
-          file "$APP_PATH/$EXECUTABLE"
-
-          echo ""
-          echo "===== APP CONTENT ====="
-          find "$APP_PATH" -maxdepth 2 -type f -print
-     
-      - name: Verify built app
-        run: |
-          set -e
-
-          APP_PATH=$(find "$GITHUB_WORKSPACE/build/DerivedData/Build/Products" \
-            -type d \
-            -path "*/Release-iphoneos/*.app" \
-            | head -n 1)
-
-          echo "APP TROVATA:"
-          echo "$APP_PATH"
 
           if [ -z "$APP_PATH" ]; then
             echo "ERRORE: .app non trovata"
-            find "$GITHUB_WORKSPACE/build/DerivedData" -type d -name "*.app"
             exit 1
           fi
 
-          echo "CONTENUTO APP:"
-          find "$APP_PATH" -maxdepth 2 -print
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_OUTPUT"
 
-          test -f "$APP_PATH/Info.plist"
+          echo "===== APP ====="
+          echo "$APP_PATH"
 
-          echo "Info.plist trovata."
-
-      - name: Create standard IPA
+      - name: Verify app bundle
         run: |
           set -e
 
-          APP_PATH=$(find "$GITHUB_WORKSPACE/build/DerivedData/Build/Products" \
-            -type d \
-            -path "*/Release-iphoneos/*.app" \
-            | head -n 1)
+          APP_PATH="${{ steps.locate.outputs.APP_PATH }}"
 
+          test -d "$APP_PATH"
+          test -f "$APP_PATH/Info.plist"
+
+          echo "===== INFO PLIST ====="
+
+          /usr/libexec/PlistBuddy \
+            -c "Print :CFBundleIdentifier" \
+            "$APP_PATH/Info.plist"
+
+          /usr/libexec/PlistBuddy \
+            -c "Print :CFBundleExecutable" \
+            "$APP_PATH/Info.plist"
+
+          /usr/libexec/PlistBuddy \
+            -c "Print :CFBundlePackageType" \
+            "$APP_PATH/Info.plist"
+
+          echo "===== EXECUTABLE ====="
+
+          EXECUTABLE=$(
+            /usr/libexec/PlistBuddy \
+            -c "Print :CFBundleExecutable" \
+            "$APP_PATH/Info.plist"
+          )
+
+          test -f "$APP_PATH/$EXECUTABLE"
+
+          file "$APP_PATH/$EXECUTABLE"
+
+          echo "===== APP CONTENT ====="
+          find "$APP_PATH" -maxdepth 2 -print
+
+      - name: Create IPA
+        run: |
+          set -e
+
+          APP_PATH="${{ steps.locate.outputs.APP_PATH }}"
+
+          rm -rf "$GITHUB_WORKSPACE/build/Payload"
           rm -rf "$GITHUB_WORKSPACE/build/IPA"
-          mkdir -p "$GITHUB_WORKSPACE/build/IPA/Payload"
 
-          APP_NAME=$(basename "$APP_PATH")
+          mkdir -p "$GITHUB_WORKSPACE/build/Payload"
+          mkdir -p "$GITHUB_WORKSPACE/build/IPA"
 
-          cp -R "$APP_PATH" \
-            "$GITHUB_WORKSPACE/build/IPA/Payload/$APP_NAME"
+          cp -R "$APP_PATH" "$GITHUB_WORKSPACE/build/Payload/"
 
-          cd "$GITHUB_WORKSPACE/build/IPA"
+          cd "$GITHUB_WORKSPACE/build"
 
-          zip -r -X GymTracker.ipa Payload
+          /usr/bin/zip \
+            -r \
+            -X \
+            "$GITHUB_WORKSPACE/build/IPA/GymTracker.ipa" \
+            Payload
 
-          echo ""
-          echo "===== CONTENUTO IPA ====="
-          unzip -l GymTracker.ipa
+          echo "===== IPA CONTENT ====="
 
-          echo ""
-          echo "===== DIMENSIONE IPA ====="
-          ls -lh GymTracker.ipa
+          /usr/bin/unzip -l \
+            "$GITHUB_WORKSPACE/build/IPA/GymTracker.ipa"
 
-          echo ""
-          echo "===== CONTROLLO STRUTTURA ====="
-          test -d "Payload/$APP_NAME"
-          test -f "Payload/$APP_NAME/Info.plist"
+          echo "===== IPA TEST ====="
 
-          echo "IPA VALIDA COME ARCHIVIO."
+          /usr/bin/unzip -t \
+            "$GITHUB_WORKSPACE/build/IPA/GymTracker.ipa"
+
+          echo "===== IPA SIZE ====="
+
+          ls -lh "$GITHUB_WORKSPACE/build/IPA/GymTracker.ipa"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: GymTracker-IPA
           path: build/IPA/GymTracker.ipa
+          if-no-files-found: error
