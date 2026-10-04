@@ -6,7 +6,8 @@ struct GymTrackerApp: App {
     var body: some Scene {
         WindowGroup {
             GymTrackerWebView()
-                .ignoresSafeArea()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea(.all)
         }
     }
 }
@@ -18,7 +19,6 @@ struct GymTrackerWebView: UIViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
 
-        // Gestore per i file locali dell'app.
         let bundleHandler = BundleSchemeHandler()
         configuration.setURLSchemeHandler(
             bundleHandler,
@@ -26,20 +26,22 @@ struct GymTrackerWebView: UIViewRepresentable {
         )
 
         let webView = WKWebView(
-            frame: .zero,
+            frame: UIScreen.main.bounds,
             configuration: configuration
         )
 
+        webView.autoresizingMask = [
+            .flexibleWidth,
+            .flexibleHeight
+        ]
+
         webView.navigationDelegate = context.coordinator
 
-        // Manteniamo il messaggio nativo per eventuali errori JS.
         configuration.userContentController.add(
             context.coordinator,
             name: "jsError"
         )
 
-        // L'app viene caricata tramite gymtracker://
-        // invece che tramite file://
         if let url = URL(string: "gymtracker://local/index.html") {
             webView.load(URLRequest(url: url))
         } else {
@@ -51,7 +53,6 @@ struct GymTrackerWebView: UIViewRepresentable {
 
         return webView
     }
-
     func updateUIView(
         _ webView: WKWebView,
         context: Context
