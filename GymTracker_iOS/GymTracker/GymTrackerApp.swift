@@ -9,6 +9,7 @@ struct GymTrackerApp: App {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea(.all)
         }
+        .windowManagerRole(.principal)
     }
 }
 
@@ -26,14 +27,9 @@ struct GymTrackerWebView: UIViewRepresentable {
         )
 
         let webView = WKWebView(
-            frame: UIScreen.main.bounds,
+            frame: .zero,
             configuration: configuration
         )
-
-        webView.autoresizingMask = [
-            .flexibleWidth,
-            .flexibleHeight
-        ]
 
         webView.navigationDelegate = context.coordinator
 
