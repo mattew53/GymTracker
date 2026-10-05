@@ -6,10 +6,8 @@ struct GymTrackerApp: App {
     var body: some Scene {
         WindowGroup {
             GymTrackerWebView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea(.all)
         }
-        .windowManagerRole(.principal)
     }
 }
 
